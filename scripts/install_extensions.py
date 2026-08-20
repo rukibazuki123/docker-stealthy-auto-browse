@@ -5,13 +5,12 @@ import json
 import os
 import subprocess
 import sys
-import urllib.request
 
 EXTENSIONS = [
     {
         "id": "uBlock0@raymondhill.net",
         "name": "uBlock Origin",
-        "url": "https://addons.mozilla.org/firefox/downloads/file/4629131/ublock_origin-1.68.0.xpi",
+        "url": "https://addons.mozilla.org/firefox/downloads/file/4940584/ublock_origin-1.73.0.xpi",
     },
     {
         "id": "{b86e4813-687a-43e6-ab65-0bde4ab75758}",
@@ -68,7 +67,19 @@ def main() -> None:
         ext_path = os.path.join(extensions_dir, f"{ext['id']}.xpi")
 
         print(f"Downloading {ext['name']}...")
-        urllib.request.urlretrieve(ext["url"], ext_path)
+        subprocess.run(
+            [
+                "curl",
+                "-fL",
+                "--retry", "5",
+                "--retry-delay", "5",
+                "--retry-all-errors",
+                "-A", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+                "-o", ext_path,
+                ext["url"],
+            ],
+            check=True,
+        )
 
         policies["policies"]["ExtensionSettings"][ext["id"]] = {
             "installation_mode": "force_installed",
