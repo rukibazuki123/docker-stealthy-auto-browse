@@ -1124,6 +1124,11 @@ class Browser:
         else:
             # Update screen dimensions to match current XVFB_RESOLUTION
             _update_config_screen(config, width, height)
+
+        # Camoufox otherwise collapses every finite animation to zero duration.
+        # Keep stock Firefox timing for animation-dependent site code (including
+        # X's client transaction generation) as well as normal UI rendering.
+        config.setdefault("disableInstantAnimations", True)
         _save_config(config)
 
         # Use system locale or default to en-US
