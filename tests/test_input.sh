@@ -31,12 +31,23 @@ test_system_click() {
     # Click on an input field via system_click, type into it to verify focus
     post '{"action": "calibrate"}' >/dev/null
     # Get name-input center coordinates
-    local resp rect_raw inp_x inp_y val
+    local resp resp_first rect_raw inp_x inp_y inp_w inp_h first_x first_y second_x second_y val
     resp=$(post '{"action": "eval", "expression": "JSON.stringify(document.getElementById(\"name-input\").getBoundingClientRect())"}')
     rect_raw=$(echo "$resp" | json_get "['data']['result']")
     inp_x=$(echo "$rect_raw" | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(int(r['x']+r['width']/2))")
     inp_y=$(echo "$rect_raw" | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(int(r['y']+r['height']/2))")
-    post "{\"action\": \"system_click\", \"x\": $inp_x, \"y\": $inp_y}" >/dev/null
+    inp_w=$(echo "$rect_raw" | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(int(r['width']))")
+    inp_h=$(echo "$rect_raw" | python3 -c "import sys,json; r=json.loads(sys.stdin.read()); print(int(r['height']))")
+    resp_first=$(post "{\"action\": \"system_click\", \"x\": $inp_x, \"y\": $inp_y, \"w\": $inp_w, \"h\": $inp_h}")
+    resp=$(post "{\"action\": \"system_click\", \"x\": $inp_x, \"y\": $inp_y, \"w\": $inp_w, \"h\": $inp_h}")
+    first_x=$(echo "$resp_first" | json_get "['data']['system_clicked']['x']")
+    first_y=$(echo "$resp_first" | json_get "['data']['system_clicked']['y']")
+    second_x=$(echo "$resp" | json_get "['data']['system_clicked']['x']")
+    second_y=$(echo "$resp" | json_get "['data']['system_clicked']['y']")
+    if [ "$first_x" = "$second_x" ] && [ "$first_y" = "$second_y" ]; then
+        echo "FAIL: system_click repeated the same randomized point"
+        return 1
+    fi
     sleep 0.5
     post '{"action": "system_type", "text": "sc", "interval": 0.02}' >/dev/null
     sleep 0.5

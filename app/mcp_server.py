@@ -38,7 +38,8 @@ _INSTRUCTIONS_SINGLE = (
     "CLICKING: always use click() with a CSS selector first — it is fast and reliable. "
     "Only use system_click() as a last resort when the site detects DOM event injection, "
     "and only after calling calibrate() to ensure correct coordinate mapping. "
-    "Use get_interactive_elements to find selectors and coordinates. "
+    "Use get_interactive_elements to find selectors and element geometry; pass "
+    "x, y, w, and h unchanged to system_click for varied safe-interior targets. "
     "Use run_script to execute multi-step workflows atomically."
 )
 
@@ -174,17 +175,19 @@ async def run_script(
             - activate (bool): Activate the uploaded source. Default false.
         get_interactive_elements: Find all interactive elements (buttons, links, inputs).
             - visible_only (bool): Only viewport-visible elements. Default true.
-            Returns: list of elements with x, y, width, height, text, selector.
+            Returns: list of elements with center coordinates x/y, dimensions w/h,
+            text, and selector.
         eval: Execute JavaScript and return result.
             - expression (str, required): JS expression to evaluate.
 
     CLICKING (prefer click over system_click):
         click: Click element by CSS selector or XPath. Fast and reliable.
             - selector (str, required): CSS selector or "xpath=..." expression.
-        system_click: Click at viewport coordinates using OS-level mouse. Undetectable
-            but requires calibrate first.
-            - x (int, required): Viewport X coordinate.
-            - y (int, required): Viewport Y coordinate.
+        system_click: Click using OS-level mouse. Requires calibrate first.
+            - x (int, required): Element center X from get_interactive_elements.
+            - y (int, required): Element center Y from get_interactive_elements.
+            - w (int, required): Element width used to randomize inside its safe interior.
+            - h (int, required): Element height used to randomize inside its safe interior.
             - duration (float): Mouse movement time in seconds.
         mouse_click: Click at absolute screen coordinates (or current position).
             - x (int): Screen X coordinate.
@@ -389,8 +392,9 @@ if not _cluster_mode:
     async def get_interactive_elements(visible_only: bool = True) -> str:
         """Find all interactive elements on the page (buttons, links, inputs, etc.).
 
-        Returns each element's viewport coordinates (x, y), dimensions,
-        text content, and CSS selector. Use the coordinates with system_click.
+        Returns each element's center coordinates (x, y), dimensions (w, h),
+        text content, and CSS selector. Pass all four geometry values unchanged
+        to system_click for randomized safe-interior clicks.
 
         Args:
             visible_only: Only return elements visible in the viewport.
@@ -433,8 +437,14 @@ if not _cluster_mode:
         return ToolResult(content=[TextContent(type="text", text=_text_result(result))])
 
     @mcp.tool
-    async def system_click(x: int, y: int, duration: float | None = None) -> str:
-        """Click at viewport coordinates using real OS-level mouse movement.
+    async def system_click(
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        duration: float | None = None,
+    ) -> str:
+        """Click an element using real OS-level mouse movement.
 
         PREFER click() with a CSS selector instead — it is faster and more reliable.
         Only use system_click when: (1) the site detects DOM event injection and
@@ -443,11 +453,17 @@ if not _cluster_mode:
         the click will land in the wrong place.
 
         Args:
-            x: Viewport X coordinate (from get_interactive_elements).
-            y: Viewport Y coordinate (from get_interactive_elements).
+            x: Element center X coordinate from get_interactive_elements. Pass directly.
+            y: Element center Y coordinate from get_interactive_elements. Pass directly.
+            w: Element width from get_interactive_elements. Used with h to choose a
+                fresh point inside the central 60% of the element.
+            h: Element height from get_interactive_elements. Used with w to choose a
+                fresh point inside the central 60% of the element.
             duration: Mouse movement time in seconds (random 0.2-0.6 if omitted).
         """
-        return _text_result(await _call("system_click", x=x, y=y, duration=duration))
+        return _text_result(
+            await _call("system_click", x=x, y=y, w=w, h=h, duration=duration)
+        )
 
     @mcp.tool
     async def system_type(text: str, interval: float = 0.08) -> str:

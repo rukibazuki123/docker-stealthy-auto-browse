@@ -76,11 +76,11 @@ curl -X POST $API -H 'Content-Type: application/json' \
 # 2. Find all interactive elements (buttons, inputs, links)
 curl -X POST $API -H 'Content-Type: application/json' \
   -d '{"action": "get_interactive_elements"}'
-# Returns elements with x, y coordinates, text, and CSS selectors
+# Returns center x/y, dimensions w/h, text, and CSS selectors
 
-# 3. Click the email field (use coordinates from step 2)
+# 3. Click a varied safe point in the email field (use geometry from step 2)
 curl -X POST $API -H 'Content-Type: application/json' \
-  -d '{"action": "system_click", "x": 400, "y": 200}'
+  -d '{"action": "system_click", "x": 400, "y": 200, "w": 240, "h": 40}'
 
 # 4. Type email with human-like keystrokes
 curl -X POST $API -H 'Content-Type: application/json' \
@@ -124,7 +124,7 @@ All actions are sent as `POST /` with JSON body `{"action": "name", ...params}`.
 
 | Action         | Parameters           | What It Does                                                                                                                                                                                                                                      |
 | -------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `system_click` | `x`, `y`, `duration` | Moves the mouse to viewport coordinates with a **human-like curved path** (random jitter, eased acceleration), then clicks. **Last resort** — prefer `click` with a CSS selector. Only use this when the site detects DOM event injection. Requires `calibrate` to have been called first or coordinates will be wrong. `duration` controls movement time (random 0.2-0.6s if omitted). |
+| `system_click` | `x`, `y`, `w`, `h`, `duration` | Moves the mouse with a **human-like curved path**, then clicks. Pass the element's center `x`/`y` and dimensions `w`/`h` from `get_interactive_elements` to choose a fresh point inside its central 60% on every click; this avoids repeated positions and keeps clicks away from edges. `w`/`h` are optional together for backward compatibility. **Last resort** — prefer `click` with a CSS selector. Requires `calibrate` first. |
 | `mouse_move`   | `x`, `y`, `duration` | Moves the mouse with human-like movement but does **not** click. Use to hover over elements (trigger dropdown menus, tooltips) or simulate natural mouse behavior between actions.                                                                |
 | `mouse_click`  | `x`, `y` (optional)  | Clicks at a position or wherever the mouse currently is. Unlike `system_click`, this does **not** do the smooth mouse movement first — it's a direct click. Use after `mouse_move` when you want to separate movement and click.                  |
 | `system_type`  | `text`, `interval`   | Types text character-by-character via **real OS keystrokes**. Each key has a randomized delay (jittered around `interval`, default 0.08s) to mimic human typing speed. You must focus an input field first.                                       |
@@ -143,7 +143,7 @@ All actions are sent as `POST /` with JSON body `{"action": "name", ...params}`.
 
 | Action                     | Parameters     | What It Does                                                                                                                                                                                                                                               |
 | -------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_interactive_elements` | `visible_only` | Scans the page and returns **every** interactive element (buttons, links, inputs, selects, textareas) with their viewport coordinates (`x`, `y`), dimensions (`w`, `h`), `text`, CSS `selector`, and `visible` status. This is how you find what to click. |
+| `get_interactive_elements` | `visible_only` | Scans the page and returns **every** interactive element (buttons, links, inputs, selects, textareas) with center coordinates (`x`, `y`), dimensions (`w`, `h`), `text`, CSS `selector`, and `visible` status. For safe varied OS clicks, pass all four geometry fields unchanged to `system_click`. |
 | `get_text`                 | —              | Returns all visible text from the page body (truncated to 10,000 chars). Usually the first thing to call after navigating — tells you what's on the page without a screenshot.                                                                             |
 | `get_html`                 | —              | Returns the full HTML source of the page. Use when `get_text` doesn't give enough structure.                                                                                                                                                               |
 | `get_page_info`            | —              | Returns the current URL, title, ready state, viewport/document dimensions, and scroll position.                                                                                                                                                           |

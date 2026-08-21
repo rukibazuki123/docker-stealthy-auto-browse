@@ -857,9 +857,46 @@ async def dispatch_action(cmd: dict) -> dict:
         x, y = cmd.get("x"), cmd.get("y")
         if x is None or y is None:
             return make_response(False, error="x,y required")
-        system.move_mouse(int(x), int(y), cmd.get("duration"))
+        w, h = cmd.get("w"), cmd.get("h")
+        if (w is None) != (h is None):
+            return make_response(False, error="w and h must be provided together")
+
+        center_x, center_y = int(x), int(y)
+        randomized = w is not None
+        if randomized:
+            try:
+                width, height = int(w), int(h)
+                target_x, target_y = system.random_click_point(
+                    center_x, center_y, width, height
+                )
+            except (TypeError, ValueError) as exc:
+                return make_response(False, error=f"Invalid element dimensions: {exc}")
+        else:
+            width = height = None
+            target_x, target_y = center_x, center_y
+
+        # A box-aware click already has a randomized target. Do not add the
+        # legacy final jitter, which could move a small target toward its edge.
+        system.move_mouse(
+            target_x,
+            target_y,
+            cmd.get("duration"),
+            target_jitter=0 if randomized else 3,
+        )
         system.click()
-        return make_response(True, {"system_clicked": {"x": x, "y": y}})
+        clicked = {
+            "x": target_x,
+            "y": target_y,
+            "randomized": randomized,
+        }
+        if randomized:
+            clicked["element"] = {
+                "x": center_x,
+                "y": center_y,
+                "w": width,
+                "h": height,
+            }
+        return make_response(True, {"system_clicked": clicked})
 
     if action == "scroll":
         amount = cmd.get("amount", -3)

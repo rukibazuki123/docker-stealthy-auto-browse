@@ -337,6 +337,16 @@ test_challenge_detector_unit() {
     echo "OK: challenge_detector_unit (signal matching, redaction, and failures)"
 }
 
+test_system_unit() {
+    docker run --rm \
+        -e PYTHONDONTWRITEBYTECODE=1 \
+        -v "$WORKDIR/tests/test_system.py:/tests/test_system.py:ro" \
+        --entrypoint python \
+        "$IMAGE_NAME:$TEST_TAG" \
+        /tests/test_system.py || return 1
+    echo "OK: system_unit (safe randomized click targets)"
+}
+
 test_script_control_flow() {
     local out
     out=$(_script_run control_flow.yaml -e EXPECTED_TEXT=Submit)
@@ -420,6 +430,7 @@ ALL_TESTS+=(
     test_script_loaders
     test_script_runner_unit
     test_challenge_detector_unit
+    test_system_unit
     test_script_control_flow
     test_script_challenge_detection
 )
