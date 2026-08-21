@@ -183,9 +183,11 @@ except Exception as e:
 
 # 7. system_click
 try:
-    r = tool_call(7, "system_click", {"x": 500, "y": 300})
+    r = tool_call(7, "system_click", {"x": 500, "y": 300, "w": 100, "h": 40})
     txt = tool_text(r)
-    ok = '"success": true' in txt or '"success":true' in txt
+    data = json.loads(txt)
+    clicked = data.get("data", {}).get("system_clicked", {})
+    ok = data.get("success") is True and clicked.get("randomized") is True
     results.append(("7. system_click", ok, txt[:80] if not ok else ""))
 except Exception as e:
     results.append(("7. system_click", False, str(e)))

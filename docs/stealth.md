@@ -21,7 +21,7 @@ Actions: `system_click`, `mouse_move`, `mouse_click`, `system_type`, `send_key`,
 
 These use PyAutoGUI to generate **real OS-level events**. The mouse physically moves across the virtual screen with human-like curves and jitter. The keyboard generates real keystroke events. The browser has absolutely no way to know these aren't from a real human sitting at a computer.
 
-System input uses **viewport coordinates** (x, y pixel positions). Get these from `get_interactive_elements`.
+System input uses **viewport coordinates**. `get_interactive_elements` returns each element's center as `x`/`y` and dimensions as `w`/`h`. Pass all four unchanged to `system_click`; it chooses a fresh point inside the central 60% of the element, avoiding borders and previously used positions for that box.
 
 ### Playwright Input — Detectable But Convenient
 
@@ -33,7 +33,7 @@ These use Playwright's DOM automation to find elements by **CSS selector or XPat
 
 - **Default:** use `click` with a CSS selector. It's fast, reliable, and works for most sites.
 - **Site explicitly detects and blocks DOM event injection?** Fall back to system input.
-- **Using `system_click`?** Call `calibrate` first — without it the coordinates are offset and the click lands in the wrong place.
+- **Using `system_click`?** Call `calibrate` first, then pass `x`, `y`, `w`, and `h` unchanged. Never add half the width or height to the center coordinates.
 - **Filling forms on a protected site?** `fill` first; if blocked, `system_click` to focus then `system_type`.
 - **Just scraping?** Playwright input (`click`, `fill`) is fine.
 

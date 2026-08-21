@@ -7,6 +7,61 @@ import random
 import time
 
 
+_SAFE_CLICK_HALF_RATIO = 0.30
+
+
+def choose_click_point(
+    center_x: int,
+    center_y: int,
+    width: int,
+    height: int,
+    excluded: set[tuple[int, int]] | None = None,
+    rng=None,
+) -> tuple[int, int]:
+    """Choose a non-edge point in an element bounding box.
+
+    ``center_x`` and ``center_y`` use the same center-coordinate convention as
+    ``get_interactive_elements``. The returned point is sampled from the central
+    60% of the box, leaving a 20% safety margin on every side. Points in
+    ``excluded`` are skipped so a caller can avoid repeating positions.
+    """
+    if width <= 0 or height <= 0:
+        raise ValueError("width and height must be positive")
+
+    random_source = rng if rng is not None else random
+    radius_x = int(width * _SAFE_CLICK_HALF_RATIO)
+    radius_y = int(height * _SAFE_CLICK_HALF_RATIO)
+    min_x, max_x = center_x - radius_x, center_x + radius_x
+    min_y, max_y = center_y - radius_y, center_y + radius_y
+
+    blocked = excluded if excluded is not None else set()
+    columns = max_x - min_x + 1
+    rows = max_y - min_y + 1
+    point_count = columns * rows
+    if len(blocked) >= point_count:
+        blocked = set()
+
+    # Usually succeeds immediately while preserving a natural random spread.
+    for _ in range(16):
+        point = (
+            random_source.randint(min_x, max_x),
+            random_source.randint(min_y, max_y),
+        )
+        if point not in blocked:
+            return point
+
+    # Near exhaustion, scan from a random offset to guarantee an unused result
+    # without building a potentially large list of every point in the box.
+    start = random_source.randrange(point_count)
+    for offset in range(point_count):
+        index = (start + offset) % point_count
+        point = (min_x + index % columns, min_y + index // columns)
+        if point not in blocked:
+            return point
+
+    raise RuntimeError("safe click area unexpectedly has no available point")
+
+
 def _get_default_resolution() -> tuple[int, int]:
     """Get default resolution from XVFB_RESOLUTION env var (WxH format)."""
     xvfb_res = os.environ.get("XVFB_RESOLUTION", "1920x1080")
@@ -22,6 +77,9 @@ class System:
     def __init__(self) -> None:
         self._pyautogui = None
         self._window_offset = {"x": 0, "y": 0}
+        self._click_history: dict[
+            tuple[int, int, int, int], set[tuple[int, int]]
+        ] = {}
 
     @property
     def is_ready(self) -> bool:
@@ -58,7 +116,41 @@ class System:
         """Convert viewport coords to screen coords."""
         return (x + self._window_offset["x"], y + self._window_offset["y"])
 
-    def move_mouse(self, x: int, y: int, duration: float | None = None) -> None:
+    def random_click_point(
+        self, center_x: int, center_y: int, width: int, height: int
+    ) -> tuple[int, int]:
+        """Choose and remember a safe randomized point for an element box."""
+        if width <= 0 or height <= 0:
+            raise ValueError("width and height must be positive")
+
+        box = (center_x, center_y, width, height)
+        if box not in self._click_history and len(self._click_history) >= 128:
+            self._click_history.pop(next(iter(self._click_history)))
+        history = self._click_history.setdefault(box, set())
+
+        radius_x = int(width * _SAFE_CLICK_HALF_RATIO)
+        radius_y = int(height * _SAFE_CLICK_HALF_RATIO)
+        point_count = (radius_x * 2 + 1) * (radius_y * 2 + 1)
+        if len(history) >= point_count:
+            history.clear()
+
+        point = choose_click_point(
+            center_x,
+            center_y,
+            width,
+            height,
+            excluded=history,
+        )
+        history.add(point)
+        return point
+
+    def move_mouse(
+        self,
+        x: int,
+        y: int,
+        duration: float | None = None,
+        target_jitter: int = 3,
+    ) -> None:
         """Move mouse with human-like behavior."""
         if not self._pyautogui:
             return
@@ -67,7 +159,7 @@ class System:
             duration = random.uniform(0.2, 0.6)
 
         screen_x, screen_y = self.screen_coords(x, y)
-        jitter = random.randint(-3, 3)
+        jitter = random.randint(-target_jitter, target_jitter) if target_jitter else 0
         target_x, target_y = screen_x + jitter, screen_y + jitter
         current_x, current_y = self._pyautogui.position()
 
